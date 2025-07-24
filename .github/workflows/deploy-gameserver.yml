@@ -4,7 +4,7 @@ name: Deploy Game Server
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   deploy:
@@ -14,18 +14,19 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
     
-    - name: Fetch SFTP credentials from WISP API
+    - name: Fetch SFTP credentials
       id: get-credentials
       run: |
-        # Fetch user email from WISP Client API
+        # Fetch user email
         USER_EMAIL=$(curl -s -X GET \
           "https://manage.hebergtonserv.com/api/client/auth/@me" \
           -H "Authorization: Bearer ${{ secrets.CLIENT_API_KEY }}" \
           -H "Content-Type: application/json" \
-          -H "Accept: Application/vnd.pterodactyl.v1+json" | \
+          -H "Accept: Application/vnd.wisp.v1+json" | \
           jq -r '.attributes.email')
-        
-        echo "sftp_username=$USER_EMAIL" >> $GITHUB_OUTPUT
+          
+        SFTP_USERNAME="${USER_EMAIL}.${{ vars.SERVER_ID }}"
+        echo "sftp_username=$SFTP_USERNAME" >> $GITHUB_OUTPUT
     
     - name: Sync to SFTP server
       uses: wlixcc/SFTP-Deploy-Action@v1.2.4
@@ -44,38 +45,9 @@ jobs:
     
     - name: Restart gameserver via WISP API
       run: |
-        # Get server power status first
-        POWER_STATUS=$(curl -s -X GET \
-          "https://manage.hebergtonserv.com/api/client/servers/${{ vars.SERVER_ID }}/resources" \
-          -H "Authorization: Bearer ${{ secrets.WISP_API_TOKEN }}" \
-          -H "Content-Type: application/json" \
-          -H "Accept: Application/vnd.pterodactyl.v1+json" | \
-          jq -r '.attributes.current_state')
-        
-        echo "Current server state: $POWER_STATUS"
-        
-        # Stop the server if it's running
-        if [ "$POWER_STATUS" = "running" ]; then
-          echo "Stopping server..."
-          curl -X POST \
-            "https://manage.hebergtonserv.com/api/client/servers/${{ vars.SERVER_ID }}/power" \
-            -H "Authorization: Bearer ${{ secrets.WISP_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -H "Accept: Application/vnd.pterodactyl.v1+json" \
-            -d '{"signal": "stop"}'
-          
-          # Wait for server to stop
-          echo "Waiting for server to stop..."
-          sleep 30
-        fi
-        
-        # Start the server
-        echo "Starting server..."
         curl -X POST \
           "https://manage.hebergtonserv.com/api/client/servers/${{ vars.SERVER_ID }}/power" \
-          -H "Authorization: Bearer ${{ secrets.WISP_API_TOKEN }}" \
+          -H "Authorization: Bearer ${{ secrets.CLIENT_API_KEY }}" \
           -H "Content-Type: application/json" \
-          -H "Accept: Application/vnd.pterodactyl.v1+json" \
-          -d '{"signal": "start"}'
-        
-        echo "Server restart initiated successfully"
+          -H "Accept: Application/vnd.wisp.v1+json" \
+          -d '{"signal": "restart"}'
