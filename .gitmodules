@@ -1,3 +1,4 @@
 [submodule "Packages/gamemode"]
 	path = Packages/gamemode
 	url = git@github.com:NanosWars/gamemode.git
+	branch = dev
